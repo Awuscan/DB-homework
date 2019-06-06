@@ -5,67 +5,55 @@ using System;
 using System.Data;
 using System.Collections.Generic;
 using DB_homework.Model;
-
+using System.IO;
 
 namespace DB_homework
 {
     class Program
     {
+        //Adres bazy danych
         private static string dbAdress { set; get; } = ":memory:";
+        //Adres Redis'a
         private static string cacheAdress { set; get; } = "localhost";
+        //Czas życia zapisu danych na serwerze chache
         private static TimeSpan ttl { set; get; } = new TimeSpan(0, 0, 5, 0);
  
         public static IDbConnection db;
         public static IDatabase cache;
         static void Main(string[] args)
         {
+            //Utworzenie połączeń
             Init();
+
+            //Zapisanie przykładowych danych
             SampleData();
 
             //Przykładowe zapytanie
-            SqlExpression<Person> SQLQuery = db.From<Person>().Join<Address>().Where(x => x.Age>17).Select();
-            SqlExpression<Address> SQLQuery2 = db.From<Address>().Where().Select();
+            SqlExpression<Person> SQLQuery = db.From<Person>().Where(x => x.Age>17).Select();
 
-            var result = getQuery(SQLQuery2);
-            Console.WriteLine(result);
+            //Odczyt zapytania
+            var result = getQuery(SQLQuery);
 
-            //List<Person> resultTwo = db.Select<Person>("SELECT Id, Name FROM Persons WHERE Age > 10"); // Przez SQL
-           // List<Person> result = db.Select(SQLQuery);
-            //Console.WriteLine(result);
-
-
-            //if(cacheResult)
-            //{
-            //    List<Person> result = db.Select(SQLQuery);
-            //    result.GetType();
-            //    cache.StringSet(SQLQuery.ToSelectStatement().ToString(), JsonConvert.SerializeObject(result), ttl);
-            //    Console.WriteLine("odczyt z bazy");
-            //    Console.WriteLine(JsonConvert.SerializeObject(result));
-            //}
-            //else
-            //{
-            //    var result = JsonConvert.DeserializeObject(cacheResult);
-            //    Console.WriteLine("odczyt z chache");
-            //    Console.WriteLine(result);
-            //}
+            //Wyświetlenie wyniku
+            Console.WriteLine(result); // Formatting.Indented));
         }
 
-        static string readCache(ISqlExpression SQLQuery) => cache.StringGet(SQLQuery.ToSelectStatement().ToString());
+        static string readCache(String key) => cache.StringGet(key);
  
         static void writeCache(String key, String value) => cache.StringSet(key, value, ttl);
 
-        static string readDB(SqlExpression<Person> SQLQuery) => JsonConvert.SerializeObject(db.Select(SQLQuery));
-        static string readDB(SqlExpression<Address> SQLQuery) => JsonConvert.SerializeObject(db.Select(SQLQuery));
-
+        static string readDB(SqlExpression<Person> SQLQuery) => JsonConvert.SerializeObject(db.Select(SQLQuery), Formatting.Indented);
+      
         static string getQuery(SqlExpression<Person> SQLQuery)
         {
-            var cacheAnswer = readCache(SQLQuery);
+            var cacheKey = SQLQuery.ToSelectStatement().ToString();
+            var cacheAnswer = readCache(cacheKey);
             if(cacheAnswer == null)
             {
                 Console.WriteLine("odczyt z bazy");
                 var databaseAnswer = readDB(SQLQuery);
-                databaseAnswer = JsonConvert.SerializeObject(databaseAnswer);
-                writeCache(SQLQuery.ToSelectStatement().ToString(), databaseAnswer);
+                databaseAnswer = JsonConvert.SerializeObject(databaseAnswer, Formatting.Indented);
+                writeCache(cacheKey, databaseAnswer);
                 return (string)JsonConvert.DeserializeObject(databaseAnswer);
             }
             else
@@ -74,51 +62,31 @@ namespace DB_homework
                 return (string)JsonConvert.DeserializeObject(cacheAnswer);
             }
         }
-        static string getQuery(SqlExpression<Address> SQLQuery)
-        {
-            var cacheAnswer = readCache(SQLQuery);
-            if (cacheAnswer == null)
-            {
-                Console.WriteLine("odczyt z bazy");
-                var databaseAnswer = readDB(SQLQuery);
-                databaseAnswer = JsonConvert.SerializeObject(databaseAnswer);
-                writeCache(SQLQuery.ToSelectStatement().ToString(), databaseAnswer);
-                return (string)JsonConvert.DeserializeObject(databaseAnswer);
-            }
-            else
-            {
-                Console.WriteLine("odczyt z cache");
-                return (string)JsonConvert.DeserializeObject(cacheAnswer);
-            }
-        }
-
+        
         static void Init()
         {
             var dbFactory = new OrmLiteConnectionFactory(dbAdress, SqliteDialect.Provider);
             ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(cacheAdress);
             cache = redis.GetDatabase();
             db = dbFactory.Open();
-            db.CreateTableIfNotExists<Address>();
-            db.CreateTableIfNotExists<Person>();
-
         }
+
         static void SampleData()
         {
-            Address addressOne = new Address() { Text = "Słoneczny Rzeszów" };
-            Address addressTwo = new Address() { Text = "Boguchwała" };
+            if (db.CreateTableIfNotExists<Person>())
+            {
+                StreamReader r = new StreamReader("c:/users/mateusz/documents/github/db-homework/db-homework/file.json");
+                string json = r.ReadToEnd();
+                List<Person> persons = JsonConvert.DeserializeObject<List<Person>>(json);
 
-            Person personOne = new Person() { Name = "Maciej", Surname = "Penar", Age = 17, Address = addressOne };
-            Person personTwo = new Person() { Name = "Wanda", Surname = "Kowalska", Age = 20, Address = addressOne };
-            Person personThree = new Person() { Name = "Róża", Surname = "Wesoła", Age = 21, Address = addressTwo };
 
-            db.SaveAllReferences(personOne);
-            db.Save(personOne);
+                foreach (var person in persons)
+                {
+                    db.Save(person);
+                }
+            }
 
-            db.SaveAllReferences(personTwo);
-            db.Save(personTwo);
 
-            db.SaveAllReferences(personThree);
-            db.Save(personThree);
         }
     }
 }

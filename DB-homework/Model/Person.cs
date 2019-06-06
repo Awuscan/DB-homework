@@ -19,8 +19,7 @@ namespace DB_homework.Model
         [CheckConstraint("Age >= -1")]
         public int Age { get; set; }
 
-        [Reference]
-        public Address Address { get; set; }
-        public int AddressId { get; set; }
+        [Required]
+        public string Phone { get; set; }
     }
 }
