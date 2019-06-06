@@ -32,21 +32,20 @@ namespace DB_homework
             {
                 var input = Console.ReadLine();
 
-                if(input == "exit")
+                if (input == "") { }
+                else
+                if (input == "exit")
                 {
                     break;
+                }else
+                {
+                    //Odczyt zapytania
+                    var result = getQuery(input);
+
+                    //Wyświetlenie wyniku
+                    Console.WriteLine(result);
                 }
 
-                var Query = input;
-
-                //Przykładowe zapytanie
-                //String Query = "SELECT Name FROM Persons WHERE Age < 50";
-
-                //Odczyt zapytania
-                var result = getQuery(Query);
-
-                //Wyświetlenie wyniku
-                Console.WriteLine(result);
             }
         }
 
@@ -54,8 +53,19 @@ namespace DB_homework
  
         static void writeCache(String key, String value) => cache.StringSet(key, value, ttl);
 
-        static string readDB(String SQLQuery) => JsonConvert.SerializeObject(db.Select<Person>(SQLQuery), Formatting.Indented);
-      
+        static string readDB(String SQLQuery)
+        {
+            List<Person> answer = null;
+            try {
+                answer = db.Select<Person>(SQLQuery);
+            }
+            catch
+            {
+                return "BAD SYNTAX";
+            }
+
+            return JsonConvert.SerializeObject(answer, Formatting.Indented);
+        }
         static string getQuery(String SQLQuery)
         {
             var cacheKey = SQLQuery;
@@ -64,7 +74,8 @@ namespace DB_homework
             {
                 Console.WriteLine("odczyt z bazy");
                 var databaseAnswer = readDB(SQLQuery);
-                writeCache(cacheKey, databaseAnswer);
+                if (databaseAnswer!= "BAD SYNTAX")
+                    writeCache(cacheKey, databaseAnswer);
                 return databaseAnswer;
             }
             else
@@ -90,11 +101,7 @@ namespace DB_homework
                 string json = r.ReadToEnd();
                 List<Person> persons = JsonConvert.DeserializeObject<List<Person>>(json);
 
-
-                foreach (var person in persons)
-                {
-                    db.Save(person);
-                }
+                db.SaveAll(persons);
             }
         }
     }
