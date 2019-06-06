@@ -28,38 +28,49 @@ namespace DB_homework
             //Zapisanie przykładowych danych
             SampleData();
 
-            //Przykładowe zapytanie
-            SqlExpression<Person> SQLQuery = db.From<Person>().Where(x => x.Age>17).Select();
+            while (true)
+            {
+                var input = Console.ReadLine();
 
-            //Odczyt zapytania
-            var result = getQuery(SQLQuery);
+                if(input == "exit")
+                {
+                    break;
+                }
 
-            //Wyświetlenie wyniku
-            Console.WriteLine(result); // Formatting.Indented));
+                var Query = input;
+
+                //Przykładowe zapytanie
+                //String Query = "SELECT Name FROM Persons WHERE Age < 50";
+
+                //Odczyt zapytania
+                var result = getQuery(Query);
+
+                //Wyświetlenie wyniku
+                Console.WriteLine(result);
+            }
         }
 
         static string readCache(String key) => cache.StringGet(key);
  
         static void writeCache(String key, String value) => cache.StringSet(key, value, ttl);
 
-        static string readDB(SqlExpression<Person> SQLQuery) => JsonConvert.SerializeObject(db.Select(SQLQuery), Formatting.Indented);
+        static string readDB(String SQLQuery) => JsonConvert.SerializeObject(db.Select<Person>(SQLQuery), Formatting.Indented);
       
-        static string getQuery(SqlExpression<Person> SQLQuery)
+        static string getQuery(String SQLQuery)
         {
-            var cacheKey = SQLQuery.ToSelectStatement().ToString();
+            var cacheKey = SQLQuery;
             var cacheAnswer = readCache(cacheKey);
             if(cacheAnswer == null)
             {
                 Console.WriteLine("odczyt z bazy");
                 var databaseAnswer = readDB(SQLQuery);
-                databaseAnswer = JsonConvert.SerializeObject(databaseAnswer, Formatting.Indented);
                 writeCache(cacheKey, databaseAnswer);
-                return (string)JsonConvert.DeserializeObject(databaseAnswer);
+                return databaseAnswer;
             }
             else
             {
                 Console.WriteLine("odczyt z cache");
-                return (string)JsonConvert.DeserializeObject(cacheAnswer);
+                return cacheAnswer;
             }
         }
         
@@ -85,8 +96,6 @@ namespace DB_homework
                     db.Save(person);
                 }
             }
-
-
         }
     }
 }
