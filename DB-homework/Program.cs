@@ -13,13 +13,17 @@ namespace DB_homework
     {
         //Adres bazy danych
         private static string dbAdress { set; get; } = ":memory:";
+
         //Adres Redis'a
         private static string cacheAdress { set; get; } = "localhost";
+
         //Czas życia zapisu danych na serwerze chache
         private static TimeSpan ttl { set; get; } = new TimeSpan(0, 0, 5, 0);
  
         public static IDbConnection db;
+
         public static IDatabase cache;
+
         static void Main(string[] args)
         {
             //Utworzenie połączeń
@@ -49,9 +53,9 @@ namespace DB_homework
             }
         }
 
-        static string readCache(String key) => cache.StringGet(key);
+        static string readCache(String key) => cache.StringGet(key.ToUpper());
  
-        static void writeCache(String key, String value) => cache.StringSet(key, value, ttl);
+        static void writeCache(String key, String value) => cache.StringSet(key.ToUpper(), value, ttl);
 
         static string readDB(String SQLQuery)
         {
