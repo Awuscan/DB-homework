@@ -2,10 +2,10 @@
 using StackExchange.Redis;
 using Newtonsoft.Json;
 using System;
+using System.IO;
 using System.Data;
 using System.Collections.Generic;
 using DB_homework.Model;
-using System.IO;
 
 namespace DB_homework
 {
@@ -17,11 +17,10 @@ namespace DB_homework
         //Adres Redis'a
         private static string cacheAdress { set; get; } = "localhost";
 
-        //Czas życia zapisu danych na serwerze chache
-        private static TimeSpan ttl { set; get; } = new TimeSpan(0, 0, 5, 0);
+        //Czas przedawnienia danych
+        private static TimeSpan ttl { set; get; } = new TimeSpan(0, 5, 0);
  
         public static IDbConnection db;
-
         public static IDatabase cache;
 
         static void Main(string[] args)
@@ -36,12 +35,10 @@ namespace DB_homework
             {
                 var input = Console.ReadLine();
 
-                if (input == "") { }
+                if (input == "") {}
                 else
-                if (input == "exit")
-                {
-                    break;
-                }else
+                if (input == "exit") { break; }
+                else
                 {
                     //Odczyt zapytania
                     var result = getQuery(input);
@@ -55,7 +52,7 @@ namespace DB_homework
 
         static string readCache(String key) => cache.StringGet(key.ToUpper());
  
-        static void writeCache(String key, String value) => cache.StringSet(key.ToUpper(), value, ttl);
+        static void writeCache(String key, String value) => cache.StringSet(key.ToUpper().Replace(" ", string.Empty), value, ttl);
 
         static string readDB(String SQLQuery)
         {
@@ -65,7 +62,7 @@ namespace DB_homework
             }
             catch
             {
-                return "BAD SYNTAX";
+                return "ZŁA SKŁADNIA";
             }
 
             return JsonConvert.SerializeObject(answer, Formatting.Indented);
@@ -78,7 +75,7 @@ namespace DB_homework
             {
                 Console.WriteLine("odczyt z bazy");
                 var databaseAnswer = readDB(SQLQuery);
-                if (databaseAnswer!= "BAD SYNTAX")
+                if (databaseAnswer!= "ZŁA SKŁADNIA")
                     writeCache(cacheKey, databaseAnswer);
                 return databaseAnswer;
             }
@@ -91,21 +88,44 @@ namespace DB_homework
         
         static void Init()
         {
-            var dbFactory = new OrmLiteConnectionFactory(dbAdress, SqliteDialect.Provider);
-            ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(cacheAdress);
-            cache = redis.GetDatabase();
-            db = dbFactory.Open();
+            try
+            {
+                var dbFactory = new OrmLiteConnectionFactory(dbAdress, SqliteDialect.Provider);
+                db = dbFactory.Open();
+            }
+            catch
+            {
+                Console.WriteLine("Błąd połączenia z bazą danych");
+            }
+
+            try
+            {
+                var redis = ConnectionMultiplexer.Connect(cacheAdress);
+                cache = redis.GetDatabase();
+            }
+            catch
+            {
+                Console.WriteLine("Błąd połączenia z Redis'em");
+            }
+
         }
 
         static void SampleData()
         {
-            if (db.CreateTableIfNotExists<Person>())
+            try
             {
-                StreamReader r = new StreamReader("c:/users/mateusz/documents/github/db-homework/db-homework/file.json");
-                string json = r.ReadToEnd();
-                List<Person> persons = JsonConvert.DeserializeObject<List<Person>>(json);
-
-                db.SaveAll(persons);
+                if (db.CreateTableIfNotExists<Person>())
+                {
+             
+                    StreamReader r = new StreamReader("file.json");
+                    string json = r.ReadToEnd();
+                    List<Person> persons = JsonConvert.DeserializeObject<List<Person>>(json);
+                    db.SaveAll(persons);
+                }
+            }
+            catch
+            {
+                Console.WriteLine("Błąd odczytu pliku/zapisu do bazy danych");
             }
         }
     }
