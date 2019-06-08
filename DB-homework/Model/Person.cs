@@ -15,8 +15,8 @@ namespace DB_homework.Model
         [Required]
         public string Surname { get; set; }
 
-        [Default(-1)]
-        [CheckConstraint("Age >= -1")]
+        [Default(0)]
+        [CheckConstraint("Age >= 0")]
         public int Age { get; set; }
 
         [Required]
