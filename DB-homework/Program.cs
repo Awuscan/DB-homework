@@ -2,25 +2,31 @@
 using StackExchange.Redis;
 using Newtonsoft.Json;
 using System;
+using System.IO;
 using System.Data;
 using System.Collections.Generic;
 using DB_homework.Model;
-using System.IO;
 
 namespace DB_homework
 {
     class Program
     {
         //Adres bazy danych
-        private static string dbAdress { set; get; } = ":memory:";
+        private static string DBAdress { set; get; } = ":memory:";
+
         //Adres Redis'a
-        private static string cacheAdress { set; get; } = "localhost";
-        //Czas życia zapisu danych na serwerze chache
-        private static TimeSpan ttl { set; get; } = new TimeSpan(0, 0, 5, 0);
+        private static string CacheAdress { set; get; } = "localhost";
+
+        //Czas przedawnienia danych
+        private static TimeSpan TTL { set; get; } = new TimeSpan(0, 5, 0);
  
-        public static IDbConnection db;
-        public static IDatabase cache;
-        static void Main(string[] args)
+        //Połączenie z bazą danych
+        public static IDbConnection DB { set; get; }
+
+        //Połączenie z Redis'em
+        public static IDatabase Cache { set; get; }
+
+        static void Main()
         {
             //Utworzenie połączeń
             Init();
@@ -28,65 +34,109 @@ namespace DB_homework
             //Zapisanie przykładowych danych
             SampleData();
 
-            //Przykładowe zapytanie
-            SqlExpression<Person> SQLQuery = db.From<Person>().Where(x => x.Age>17).Select();
+            while (true)
+            {
+                Console.WriteLine("\nPodaj zapytanie: ");
 
-            //Odczyt zapytania
-            var result = getQuery(SQLQuery);
+                //Pobranie zapytania od użytkownika
+                var input = Console.ReadLine();
 
-            //Wyświetlenie wyniku
-            Console.WriteLine(result); // Formatting.Indented));
+                if (input == "") {}
+                else
+                if (input == "exit") { break; }
+                else
+                {
+                    //Wykonanie zapytania
+                    var result = GetQuery(input);
+
+                    //Wyświetlenie wyniku
+                    Console.WriteLine(result+ "\n");
+                }
+            }
         }
 
-        static string readCache(String key) => cache.StringGet(key);
+        //Pobranie danych z Redis'a
+        static string ReadCache(String key) => Cache.StringGet(key);
  
-        static void writeCache(String key, String value) => cache.StringSet(key, value, ttl);
+        //Zapisanie danych do Redis'a
+        static void WriteCache(String key, String value) => Cache.StringSet(key, value, TTL);
 
-        static string readDB(SqlExpression<Person> SQLQuery) => JsonConvert.SerializeObject(db.Select(SQLQuery), Formatting.Indented);
-      
-        static string getQuery(SqlExpression<Person> SQLQuery)
+        //Wykonanie zapytania na bazie danych
+        static string ReadDB(String SQLQuery)
         {
-            var cacheKey = SQLQuery.ToSelectStatement().ToString();
-            var cacheAnswer = readCache(cacheKey);
+            List<Person> answer = null;
+            try {
+                answer = DB.Select<Person>(SQLQuery);
+            }
+            catch
+            {
+                return "Błąd zapytania";
+            }
+
+            return JsonConvert.SerializeObject(answer, Formatting.Indented);
+        }
+
+        //Pobranie wyniku zapytania użytkownika
+        static string GetQuery(String SQLQuery)
+        {
+            var cacheKey = SQLQuery.ToUpper().Replace(" ", string.Empty);
+            var cacheAnswer = ReadCache(cacheKey);
             if(cacheAnswer == null)
             {
-                Console.WriteLine("odczyt z bazy");
-                var databaseAnswer = readDB(SQLQuery);
-                databaseAnswer = JsonConvert.SerializeObject(databaseAnswer, Formatting.Indented);
-                writeCache(cacheKey, databaseAnswer);
-                return (string)JsonConvert.DeserializeObject(databaseAnswer);
+                Console.WriteLine("\nOdczyt z bazy");
+                var databaseAnswer = ReadDB(SQLQuery);
+                if (databaseAnswer!= "Błąd zapytania")
+                    WriteCache(cacheKey, databaseAnswer);
+                return databaseAnswer;
             }
             else
             {
-                Console.WriteLine("odczyt z cache");
-                return (string)JsonConvert.DeserializeObject(cacheAnswer);
+                Console.WriteLine("\nOdczyt z cache");
+                return cacheAnswer;
             }
         }
-        
+
+        //Otwarcie połączeń z bazą danych i Redis'em
         static void Init()
         {
-            var dbFactory = new OrmLiteConnectionFactory(dbAdress, SqliteDialect.Provider);
-            ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(cacheAdress);
-            cache = redis.GetDatabase();
-            db = dbFactory.Open();
-        }
-
-        static void SampleData()
-        {
-            if (db.CreateTableIfNotExists<Person>())
+            try
             {
-                StreamReader r = new StreamReader("c:/users/mateusz/documents/github/db-homework/db-homework/file.json");
-                string json = r.ReadToEnd();
-                List<Person> persons = JsonConvert.DeserializeObject<List<Person>>(json);
-
-
-                foreach (var person in persons)
-                {
-                    db.Save(person);
-                }
+                var dbFactory = new OrmLiteConnectionFactory(DBAdress, SqliteDialect.Provider);
+                DB = dbFactory.Open();
+            }
+            catch
+            {
+                Console.WriteLine("Błąd połączenia z bazą danych");
             }
 
+            try
+            {
+                ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(CacheAdress);
+                Cache = redis.GetDatabase();
+            }
+            catch
+            {
+                Console.WriteLine("Błąd połączenia z Redis'em");
+            }
+        }
 
+        //Stworzenie tabeli i wypełnienie jej danymi
+        static void SampleData()
+        {
+            try
+            {
+                if (DB.CreateTableIfNotExists<Person>())
+                {  
+                    StreamReader r = new StreamReader("file.json");
+                    string json = r.ReadToEnd();
+                    List<Person> persons = JsonConvert.DeserializeObject<List<Person>>(json);
+                    DB.SaveAll(persons);
+                }
+            }
+            catch
+            {
+                Console.WriteLine("Błąd odczytu pliku/zapisu do bazy danych");
+            }
         }
     }
 }

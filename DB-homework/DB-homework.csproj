@@ -16,4 +16,10 @@
     <Folder Include="Model\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="file.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
