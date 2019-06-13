@@ -6,6 +6,8 @@ using System.IO;
 using System.Data;
 using System.Collections.Generic;
 using DB_homework.Model;
+using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 namespace DB_homework
 {
@@ -34,6 +36,9 @@ namespace DB_homework
             //Zapisanie przykładowych danych
             SampleData();
 
+            Stopwatch stopwatch = new Stopwatch();
+
+
             while (true)
             {
                 Console.WriteLine("\nPodaj zapytanie: ");
@@ -46,11 +51,20 @@ namespace DB_homework
                 if (input == "exit") { break; }
                 else
                 {
+                    stopwatch.Start();
+
                     //Wykonanie zapytania
                     var result = GetQuery(input);
 
+                    stopwatch.Stop();
+                    
+
                     //Wyświetlenie wyniku
                     Console.WriteLine(result+ "\n");
+                    Console.WriteLine("Czas trwania: {0}", stopwatch.Elapsed);
+
+                    stopwatch.Reset();
+
                 }
             }
         }
@@ -79,7 +93,7 @@ namespace DB_homework
         //Pobranie wyniku zapytania użytkownika
         static string GetQuery(String SQLQuery)
         {
-            var cacheKey = SQLQuery.ToUpper().Replace(" ", string.Empty);
+            var cacheKey = Regex.Replace(SQLQuery.ToUpper(),@"\s+" , string.Empty).GetHashCode().ToString();
             var cacheAnswer = ReadCache(cacheKey);
             if(cacheAnswer == null)
             {
